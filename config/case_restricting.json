@@ -1,0 +1,18 @@
+{
+  "create_plan": [
+    {
+      "epoch": 1,
+      "amount": 1000000000000000000
+    },
+    {
+      "epoch": 2,
+      "amount": 3000000000000000000
+    }
+  ],
+  "case_pledge_return":{
+      "staking": {
+        "bls_key":"0f08ba53db221976fe613e4d1c929e93a8d4a4a6f23a186ef0a3c0027d279f22888470f0e474ec9ad013191f328bcf7411041860ef6e4e3765d4d2344ec8e49f",
+        "node_id": "d5d7a9e9459a2622a298f0b885bdfdf6a3ac2d686ad39c5f4652b862e8e8589169a0f392554a1ae3bf5dedef5b215ba3d9bab665c178f93fcb264ab2bafb99ec"
+      }
+  }
+}
