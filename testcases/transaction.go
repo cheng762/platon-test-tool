@@ -43,7 +43,7 @@ type UnlockResponse struct {
 	} `json:"error"`
 }
 
-func SendRawTransaction(ctx context.Context, client *ethclient.Client, from, to common.Address, value string, data []byte, pkFile string) (common.Hash, error) {
+func SendRawTransaction(ctx context.Context, client *ethclient.Client, from, to common.Address, value string, data []byte) (common.Hash, error) {
 	if len(AccountPool) == 0 {
 		parsePkFile()
 	}

@@ -21,8 +21,12 @@ import (
 	"github.com/robfig/cron"
 	"log"
 	"math/big"
+	"reflect"
+	"strings"
 	"time"
 )
+
+const PrefixCase = "Case"
 
 type commonCases struct {
 	client *ethclient.Client
@@ -39,10 +43,33 @@ type job struct {
 	params []interface{}
 	done   bool
 	runing bool
+	desc   string
 }
 
 func (j *job) run(block *types.Block) (bool, error) {
 	return j.handle(block, j.params...)
+}
+
+func (c *commonCases) list(m caseTest) []string {
+	var names []string
+	object := reflect.TypeOf(m)
+	for i := 0; i < object.NumMethod(); i++ {
+		method := object.Method(i)
+		if strings.HasPrefix(method.Name, PrefixCase) {
+			names = append(names, strings.TrimPrefix(method.Name, "Case"))
+		}
+	}
+	return names
+}
+
+func (c *commonCases) exec(caseName string, m caseTest) error {
+	methodNames := PrefixCase + caseName
+	val := reflect.ValueOf(m).MethodByName(methodNames).Call([]reflect.Value{})
+	if val[0].IsNil() {
+		return nil
+	}
+	err := val[0].Interface().(error)
+	return err
 }
 
 //初始化case
@@ -60,6 +87,7 @@ func (c *commonCases) Prepare() error {
 	c.donech = make(chan struct{}, 0)
 	c.errch = make(chan error, 0)
 	c.errors = make([]error, 0)
+	parsePkFile()
 	return nil
 }
 
@@ -193,7 +221,7 @@ func (c *commonCases) CreateStakingTransaction(ctx context.Context, from common.
 
 	send := c.encodePPOS(params)
 
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.StakingContractAddr, "0", send, "")
+	txhash, err := SendRawTransaction(ctx, c.client, from, vm.StakingContractAddr, "0", send)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -211,7 +239,7 @@ func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from
 	params = append(params, account)
 	params = append(params, plansByte)
 	send := c.encodePPOS(params)
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.RestrictingContractAddr, "0", send, "")
+	txhash, err := SendRawTransaction(ctx, c.client, from, vm.RestrictingContractAddr, "0", send)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -232,7 +260,7 @@ func (c *commonCases) DelegateTransaction(ctx context.Context, account common.Ad
 	params = append(params, encodeAmount)
 	send := c.encodePPOS(params)
 
-	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send, "")
+	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -281,7 +309,7 @@ func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBl
 	params = append(params, amount10)
 	send := c.encodePPOS(params)
 
-	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send, "")
+	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -337,11 +365,12 @@ func (c *commonCases) SendError(caseName string, err error) error {
 //添加需等待的测试，每隔1s将当前块高传入f中并执行
 // f为需要执行的函数，当执行成功返回true，nil，当未达到执行条件返回false，nil，当执行失败返回false，error
 // params为f所需要的参数
-func (c *commonCases) addJobs(f func(block *types.Block, params ...interface{}) (bool, error), params ...interface{}) {
+func (c *commonCases) addJobs(desc string, f func(block *types.Block, params ...interface{}) (bool, error), params ...interface{}) {
 	var j *job
 	j = new(job)
 	j.params = params
 	j.handle = f
+	j.desc = desc
 	c.jobs = append(c.jobs, j)
 }
 
@@ -360,16 +389,27 @@ func (c *commonCases) schedule() {
 	if err != nil {
 		panic(err)
 	}
+	if block.Number().Uint64()%10 == 0 {
+		log.Printf("schedule working,current block num is %v", block.Number())
+	}
 	for i := 0; i < len(c.jobs); {
 		if c.jobs[i].done {
+			log.Printf("[job] %v done", c.jobs[i].desc)
 			c.jobs = append(c.jobs[:i], c.jobs[i+1:]...)
 		} else {
 			if !c.jobs[i].runing {
 				go func(j *job) {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("Recovered in :%v", r)
+							c.errch <- fmt.Errorf("job %v painc", j.desc)
+							j.done = true
+						}
+					}()
 					j.runing = true
 					ok, err := j.run(block)
 					if err != nil {
-						c.errch <- err
+						c.errch <- fmt.Errorf("job %v fail:%v", c.jobs[i].desc, err)
 						j.done = true
 						return
 					}

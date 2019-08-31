@@ -43,7 +43,7 @@ func PrepareAccount(size int, value string) error {
 		return err
 	}
 	for addr := range AccountPool {
-		hash, err := SendRawTransaction(context.Background(), client, config.Account, addr, value, nil, "")
+		hash, err := SendRawTransaction(context.Background(), client, config.Account, addr, value, nil)
 		if err != nil {
 			return fmt.Errorf("prepare error,send from coinbase error,%s", err.Error())
 		}
