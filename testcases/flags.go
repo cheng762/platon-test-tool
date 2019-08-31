@@ -14,16 +14,12 @@ var (
 		Usage: "transfer value",
 	}
 	ConfigPathFlag = cli.StringFlag{
-		Name:  "config",
+		Name:  "config,c",
 		Usage: "config path",
 	}
 	FuncNameFlag = cli.StringFlag{
-		Name:  "func",
+		Name:  "func,f",
 		Usage: "use specic func ",
-	}
-	CaseNameFlag = cli.StringFlag{
-		Name:  "case",
-		Usage: "use specic case ",
 	}
 	StartFlag = []cli.Flag{
 		ConfigPathFlag,
@@ -31,10 +27,6 @@ var (
 	ExecFlag = []cli.Flag{
 		FuncNameFlag,
 		ConfigPathFlag,
-		CaseNameFlag,
-	}
-	ListFlag = []cli.Flag{
-		CaseNameFlag,
 	}
 	stabPrepareCmdFlags = []cli.Flag{
 		AccountSizeFlag,

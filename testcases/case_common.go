@@ -103,6 +103,7 @@ func (c *commonCases) End() error {
 			c.errors = append(c.errors, err)
 		case <-c.donech:
 			c.corn.Stop()
+			close(c.errch)
 			return nil
 		}
 	}
@@ -340,12 +341,16 @@ func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common
 	if err := json.Unmarshal(res, &xres); err != nil {
 		panic(err)
 	}
-	var result restricting.Result
-	if err := json.Unmarshal([]byte(xres.Data), &result); err != nil {
-		log.Print(xres)
-		panic(err)
+	if xres.Status {
+		var result restricting.Result
+		if err := json.Unmarshal([]byte(xres.Data), &result); err != nil {
+			log.Print(xres)
+			panic(err)
+		}
+		return result
+	} else {
+		return restricting.Result{}
 	}
-	return result
 }
 
 //获取账户金额

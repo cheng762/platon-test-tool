@@ -2,6 +2,7 @@ package testcases
 
 import (
 	"context"
+	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/vm"
 	"log"
@@ -72,5 +73,19 @@ func (r *initCases) CaseInitAccountBalance() error {
 	log.Print("RestrictingContract balance:", balance4)
 	balance5 := r.GetBalance(r.cxt, common.HexToAddress("0xf66CB3C7f28D058AE3C6eD9493C6A9e2a7d7786d"), big.NewInt(1))
 	log.Print("0xf66CB3C7f28D058AE3C6eD9493C6A9e2a7d7786d balance:", balance5)
+	return nil
+}
+
+func (r *initCases) CaseRewardManagerPoolRestrictingRecord() error {
+	res := r.CallGetRestrictingInfo(r.cxt, vm.RewardManagerPoolAddr)
+	log.Printf("RewardManagerPoolAddr  RestrictingInfo  %+v", res)
+	totalMount := new(big.Int)
+	for _, value := range res.Entry {
+		totalMount.Add(totalMount, value.Amount.ToInt())
+	}
+	t, _ := new(big.Int).SetString("259096240418673500000000000", 10)
+	if totalMount.Cmp(t) != 0 {
+		return fmt.Errorf("RewardPool init Restricting Record amount is wrong,want %v have %v", t, totalMount)
+	}
 	return nil
 }

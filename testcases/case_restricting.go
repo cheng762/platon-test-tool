@@ -72,6 +72,7 @@ func (r *restrictCases) End() error {
 func (r *restrictCases) List() []string {
 	return r.list(r)
 }
+
 func (r *restrictCases) parseConfigJson() {
 	bytes, err := ioutil.ReadFile(r.paramsPath)
 	if err != nil {
