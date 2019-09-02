@@ -2,7 +2,6 @@ package testcases
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	ethereum "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -10,7 +9,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"math/big"
-	"strconv"
 	"strings"
 )
 
@@ -43,10 +41,7 @@ type UnlockResponse struct {
 	} `json:"error"`
 }
 
-func SendRawTransaction(ctx context.Context, client *ethclient.Client, from, to common.Address, value string, data []byte) (common.Hash, error) {
-	if len(AccountPool) == 0 {
-		parsePkFile()
-	}
+func SendRawTransaction(ctx context.Context, client *ethclient.Client, from *PriAccount, to common.Address, value string, data []byte) (common.Hash, error) {
 	v := new(big.Int)
 	var err error
 	if strings.HasPrefix(value, "0x") {
@@ -56,21 +51,17 @@ func SendRawTransaction(ctx context.Context, client *ethclient.Client, from, to 
 		}
 		v = bigValue
 	} else {
-		v2, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
+		tmp, ok := new(big.Int).SetString(value, 10)
+		if !ok {
 			panic(fmt.Sprintf("transfer value to int error.%s", err))
 		}
-		v.SetInt64(v2)
-	}
-	acc, ok := AccountPool[from]
-	if !ok {
-		return common.ZeroHash, fmt.Errorf("private key not found in private key file,addr:%s", from)
+		v = tmp
 	}
 	var msg ethereum.CallMsg
 	msg.Data = data
 	msg.Value = v
 	msg.To = &to
-	msg.From = from
+	msg.From = from.Address
 	gas, err := client.EstimateGas(ctx, msg)
 	if err != nil {
 		return common.ZeroHash, fmt.Errorf("EstimateGas fail:%v", err)
@@ -79,26 +70,26 @@ func SendRawTransaction(ctx context.Context, client *ethclient.Client, from, to 
 	if err != nil {
 		return common.ZeroHash, fmt.Errorf("SuggestGasPrice fail:%v", err)
 	}
-	nonce, err := client.NonceAt(ctx, from, nil)
+	nonce, err := client.NonceAt(ctx, from.Address, nil)
 	if err != nil {
 		return common.ZeroHash, fmt.Errorf("get nonce fail:%v", err)
 	}
 
-	if acc.Nonce < nonce {
-		acc.Nonce = nonce
+	if from.Nonce < nonce {
+		from.Nonce = nonce
 	}
 
-	newTx := getSignedTransaction(from, to, v, gas, gasPrise, data, acc.Priv, acc.Nonce)
+	newTx := getSignedTransaction(from, to, v, gas, gasPrise, data)
 
 	if err := client.SendTransaction(ctx, newTx); err != nil {
 		panic(err)
 	}
-	acc.Nonce = acc.Nonce + 1
+	from.Nonce = from.Nonce + 1
 	return newTx.Hash(), nil
 }
 
-func getSignedTransaction(from, to common.Address, value *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte, priv *ecdsa.PrivateKey, nonce uint64) *types.Transaction {
-	newTx, err := types.SignTx(types.NewTransaction(nonce, to, value, gasLimit, gasPrice, data), types.NewEIP155Signer(new(big.Int).SetInt64(102)), priv)
+func getSignedTransaction(from *PriAccount, to common.Address, value *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *types.Transaction {
+	newTx, err := types.SignTx(types.NewTransaction(from.Nonce, to, value, gasLimit, gasPrice, data), types.NewEIP155Signer(new(big.Int).SetInt64(102)), from.Priv)
 	if err != nil {
 		panic(fmt.Errorf("sign error,%s", err.Error()))
 	}

@@ -46,7 +46,10 @@ var allCases map[string]caseTest
 
 func start(c *cli.Context) {
 	var wg sync.WaitGroup
-	parseConfigJson(c.String(ConfigPathFlag.Name))
+	loadData(c.String(ConfigPathFlag.Name))
+	for _, value := range allAccounts {
+		AccountPool.Put(value)
+	}
 	for name, value := range allCases {
 		wg.Add(1)
 		go func(caseFunc caseTest) {
@@ -70,8 +73,8 @@ func start(c *cli.Context) {
 }
 
 func exec(c *cli.Context) {
+	loadData(c.String(ConfigPathFlag.Name))
 
-	parseConfigJson(c.String(ConfigPathFlag.Name))
 	funcName := c.String(FuncNameFlag.Name)
 	caseName := c.Args().First()
 

@@ -30,20 +30,18 @@ func prepareAccount(c *cli.Context) {
 }
 
 func PrepareAccount(size int, value string) error {
-	if len(AccountPool) == 0 {
-		generateAccount(size)
-	}
+	generateAccount(size)
 	pri, err := crypto.HexToECDSA(config.GeinisPrikey)
 	if err != nil {
 		return fmt.Errorf("hex to ecdsa fail:%v", err)
 	}
-	AccountPool[config.Account] = &PriAccount{pri, 0}
+	configAccount := &PriAccount{pri, 0, config.Account}
 	client, err := ethclient.Dial(config.Url)
 	if err != nil {
 		return err
 	}
-	for addr := range AccountPool {
-		hash, err := SendRawTransaction(context.Background(), client, config.Account, addr, value, nil)
+	for addr := range allAccounts {
+		hash, err := SendRawTransaction(context.Background(), client, configAccount, addr, value, nil)
 		if err != nil {
 			return fmt.Errorf("prepare error,send from coinbase error,%s", err.Error())
 		}

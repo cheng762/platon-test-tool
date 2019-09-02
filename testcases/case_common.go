@@ -30,7 +30,7 @@ const PrefixCase = "Case"
 
 type commonCases struct {
 	client *ethclient.Client
-	adrs   []common.Address
+	//adrs   []common.Address
 	corn   *cron.Cron
 	jobs   []*job
 	errors []error
@@ -79,7 +79,7 @@ func (c *commonCases) Prepare() error {
 		return err
 	}
 	c.client = client
-	c.adrs = GetAllAddress()
+	//	c.adrs = GetAllAddress()
 	c.corn = cron.New()
 	if err := c.corn.AddFunc("@every 1s", c.schedule); err != nil {
 		return err
@@ -87,7 +87,6 @@ func (c *commonCases) Prepare() error {
 	c.donech = make(chan struct{}, 0)
 	c.errch = make(chan error, 0)
 	c.errors = make([]error, 0)
-	parsePkFile()
 	return nil
 }
 
@@ -191,7 +190,7 @@ type stakingInput struct {
 }
 
 //创建质押
-func (c *commonCases) CreateStakingTransaction(ctx context.Context, from common.Address, input stakingInput, VersionValue *ProgramVersionValue) (common.Hash, error) {
+func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAccount, input stakingInput, VersionValue *ProgramVersionValue) (common.Hash, error) {
 	var params [][]byte
 	params = make([][]byte, 0)
 	fnType, _ := rlp.EncodeToBytes(uint16(1000))
@@ -230,7 +229,7 @@ func (c *commonCases) CreateStakingTransaction(ctx context.Context, from common.
 }
 
 //创建锁仓
-func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from, to common.Address, plans []restricting.RestrictingPlan) (common.Hash, error) {
+func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from *PriAccount, to common.Address, plans []restricting.RestrictingPlan) (common.Hash, error) {
 	var params [][]byte
 	params = make([][]byte, 0)
 	fnType, _ := rlp.EncodeToBytes(uint16(4000))
@@ -248,7 +247,7 @@ func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from
 }
 
 //创建委托
-func (c *commonCases) DelegateTransaction(ctx context.Context, account common.Address, nodeID discover.NodeID, typ uint16, amount *big.Int) (common.Hash, error) {
+func (c *commonCases) DelegateTransaction(ctx context.Context, account *PriAccount, nodeID discover.NodeID, typ uint16, amount *big.Int) (common.Hash, error) {
 	fnType, _ := rlp.EncodeToBytes(uint16(1004))
 	encodeTyp, _ := rlp.EncodeToBytes(typ)
 	id, _ := rlp.EncodeToBytes(nodeID)
@@ -298,7 +297,7 @@ func (c *commonCases) CallGetRelatedListByDelAddr(ctx context.Context, account c
 }
 
 //减持/撤销委托
-func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBlockNum uint64, nodeID discover.NodeID, account common.Address, amount *big.Int) (common.Hash, error) {
+func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBlockNum uint64, nodeID discover.NodeID, account *PriAccount, amount *big.Int) (common.Hash, error) {
 	fnType, _ := rlp.EncodeToBytes(uint16(1005))
 	stakingNum, _ := rlp.EncodeToBytes(stakingBlockNum)
 	noid, _ := rlp.EncodeToBytes(nodeID)
@@ -385,7 +384,8 @@ func (c *commonCases) generateEmptyAccount() (*ecdsa.PrivateKey, common.Address)
 	address := crypto.PubkeyToAddress(privateKey.PublicKey)
 	var pri PriAccount
 	pri.Priv = privateKey
-	AccountPool[address] = &pri
+	pri.Address = address
+	allAccounts[address] = &pri
 	return privateKey, address
 }
 

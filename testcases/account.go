@@ -9,45 +9,20 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/secp256k1"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path"
+	"sync"
 )
 
 var (
-	AccountPool = make(map[common.Address]*PriAccount)
+	allAccounts = make(map[common.Address]*PriAccount)
+	AccountPool sync.Pool
 )
 
 type PriAccount struct {
-	Priv  *ecdsa.PrivateKey
-	Nonce uint64
-}
-
-func GetAllAddress() []common.Address {
-	addrsPath := path.Join(config.Dir, config.DefaultAccountAddrFile)
-	bytes, err := ioutil.ReadFile(addrsPath)
-	if err != nil {
-		panic(fmt.Errorf("get all address array error,%s \n", err.Error()))
-	}
-	var addrs []common.Address
-	err = json.Unmarshal(bytes, &addrs)
-	if err != nil {
-		panic(fmt.Errorf("parse address to array error,%s \n", err.Error()))
-	}
-
-	return addrs
-}
-
-func GetRandomAddr(addrs []common.Address) (common.Address, common.Address) {
-	if len(addrs) == 0 {
-		return common.ZeroAddr, common.ZeroAddr
-	}
-	fromIndex := rand.Intn(len(addrs))
-	toIndex := rand.Intn(len(addrs))
-	for toIndex == fromIndex {
-		toIndex = rand.Intn(len(addrs))
-	}
-	return addrs[fromIndex], addrs[toIndex]
+	Priv    *ecdsa.PrivateKey
+	Nonce   uint64
+	Address common.Address
 }
 
 func generateAccount(size int) {
@@ -55,7 +30,7 @@ func generateAccount(size int) {
 	for i := 0; i < size; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		AccountPool[address] = &PriAccount{privateKey, 0}
+		allAccounts[address] = &PriAccount{privateKey, 0, address}
 		addrs[i] = address
 	}
 	savePrivateKeyPool()
@@ -71,7 +46,7 @@ func savePrivateKeyPool() {
 	}
 	os.Truncate(pkFile, 0)
 	enc := gob.NewEncoder(file)
-	err = enc.Encode(AccountPool)
+	err = enc.Encode(allAccounts)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -99,7 +74,7 @@ func parsePkFile() {
 		panic(err)
 	}
 	dec := gob.NewDecoder(file)
-	err2 := dec.Decode(&AccountPool)
+	err2 := dec.Decode(&allAccounts)
 	if err2 != nil {
 		panic(err2)
 	}

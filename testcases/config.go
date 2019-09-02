@@ -46,3 +46,11 @@ func parseConfigJson(configPath string) {
 		panic(fmt.Errorf("parse config to json error,%s", err.Error()))
 	}
 }
+
+func loadData(configPath string) {
+	parseConfigJson(configPath)
+	parsePkFile()
+	for _, value := range allAccounts {
+		AccountPool.Put(value)
+	}
+}
