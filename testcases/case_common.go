@@ -121,6 +121,22 @@ func (c *commonCases) encodePPOS(params [][]byte) []byte {
 	return buf.Bytes()
 }
 
+func (c *commonCases) GetXcomResult(ctx context.Context, txHash common.Hash) (*xcom.Result, error) {
+	receipt, err := c.client.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return nil, fmt.Errorf("get TransactionReceipt fail:%v", err)
+	}
+	var logRes [][]byte
+	if err := rlp.DecodeBytes(receipt.Logs[0].Data, &logRes); err != nil {
+		return nil, fmt.Errorf("rlp decode fail:%v", err)
+	}
+	var res xcom.Result
+	if err := json.Unmarshal(logRes[0], &res); err != nil {
+		return nil, fmt.Errorf("json decode fail:%v", err)
+	}
+	return &res, nil
+}
+
 //等待交易确认
 func (c *commonCases) WaitTransactionByHash(ctx context.Context, txHash common.Hash) error {
 	i := 0
@@ -316,8 +332,22 @@ func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBl
 	return txhash, nil
 }
 
+// for plugin test
+type restrictingResult struct {
+	Balance *big.Int                 `json:"balance"`
+	Debt    *big.Int                 `json:"debt"`
+	Entry   []restrictingReleaseInfo `json:"plans"`
+	Pledge  *big.Int                 `json:"Pledge"`
+}
+
+// for plugin test
+type restrictingReleaseInfo struct {
+	Height uint64   `json:"blockNumber"` // blockNumber representation of the block number at the released epoch
+	Amount *big.Int `json:"amount"`      // amount representation of the released amount
+}
+
 //获取锁仓信息
-func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common.Address) restricting.Result {
+func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common.Address) restrictingResult {
 	var params [][]byte
 	params = make([][]byte, 0)
 	fnType, _ := rlp.EncodeToBytes(uint16(4100))
@@ -340,15 +370,23 @@ func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common
 	if err := json.Unmarshal(res, &xres); err != nil {
 		panic(err)
 	}
-	if xres.Status {
+	if xres.ErrMsg == "" {
 		var result restricting.Result
 		if err := json.Unmarshal([]byte(xres.Data), &result); err != nil {
 			log.Print(xres)
 			panic(err)
 		}
-		return result
+		var res restrictingResult
+		res.Balance = result.Balance.ToInt()
+		res.Pledge = result.Pledge.ToInt()
+		res.Debt = result.Debt.ToInt()
+		res.Entry = make([]restrictingReleaseInfo, 0)
+		for _, value := range result.Entry {
+			res.Entry = append(res.Entry, restrictingReleaseInfo{value.Height, value.Amount.ToInt()})
+		}
+		return res
 	} else {
-		return restricting.Result{}
+		return restrictingResult{}
 	}
 }
 
@@ -392,9 +430,12 @@ func (c *commonCases) generateEmptyAccount() (*ecdsa.PrivateKey, common.Address)
 func (c *commonCases) schedule() {
 	block, err := c.client.BlockByNumber(context.Background(), nil)
 	if err != nil {
-		panic(err)
+		c.errch <- fmt.Errorf("job error: %v", err)
+		c.donech <- struct{}{}
+		close(c.donech)
+		return
 	}
-	if block.Number().Uint64()%10 == 0 {
+	if block.Number().Uint64()%100 == 0 {
 		log.Printf("schedule working,current block num is %v", block.Number())
 	}
 	for i := 0; i < len(c.jobs); {
