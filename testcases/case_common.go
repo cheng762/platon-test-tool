@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/discover"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/x/restricting"
 	"github.com/PlatONnetwork/PlatON-Go/x/staking"
@@ -166,31 +167,23 @@ type ProgramVersionValue struct {
 }
 
 //获取ProgramVersion
-func (c *commonCases) CallProgramVersion(ctx context.Context) (*ProgramVersionValue, error) {
-	var msg ethereum.CallMsg
-	msg.To = &vm.GovContractAddr
+func (c *commonCases) GetSchnorrNIZKProve(ctx context.Context) (string, error) {
+	prove, err := c.client.GetSchnorrNIZKProve(ctx)
+	if err != nil {
+		return "", err
+	}
 
-	var params [][]byte
-	fnType, _ := rlp.EncodeToBytes(uint16(2104))
-	params = append(params, fnType)
+	return prove, nil
+}
 
-	send := c.encodePPOS(params)
-
-	msg.Data = send
-	data, err := c.client.CallContract(ctx, msg, nil)
+//获取ProgramVersion
+func (c *commonCases) CallProgramVersion(ctx context.Context) (*params.ProgramVersion, error) {
+	pg, err := c.client.GetProgramVersion(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var xres xcom.Result
-	if err := json.Unmarshal(data, &xres); err != nil {
-		panic(err)
-	}
-	var VersionValue ProgramVersionValue
-	if err := json.Unmarshal([]byte(xres.Data), &VersionValue); err != nil {
-		log.Print(xres)
-		panic(err)
-	}
-	return &VersionValue, nil
+
+	return pg, nil
 }
 
 type stakingInput struct {

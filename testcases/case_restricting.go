@@ -201,7 +201,7 @@ func (r *restrictCases) CaseCreatePlan() error {
 
 func (r *restrictCases) CasePledgeLockAndReturn() error {
 	ctx := context.Background()
-	VersionValue, err := r.CallProgramVersion(ctx)
+	_, err := r.CallProgramVersion(ctx)
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (r *restrictCases) CasePledgeLockAndReturn() error {
 	input.NodeId = id
 
 	log.Print("begin create staking")
-	txhash2, err := r.CreateStakingTransaction(ctx, stakingAccount, input, VersionValue)
+	txhash2, err := r.CreateStakingTransaction(ctx, stakingAccount, input, nil)
 	if err != nil {
 		return fmt.Errorf("createStakingTransaction fail:%v", err)
 	}
