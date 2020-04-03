@@ -33,6 +33,8 @@ func init() {
 	allCases["restricting"] = new(restrictCases)
 	allCases["init_token"] = new(initCases)
 	allCases["reward"] = new(rewardCases)
+	allCases["gov"] = new(govCases)
+
 }
 
 type caseTest interface {

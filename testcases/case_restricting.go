@@ -2,12 +2,18 @@ package testcases
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/vm"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
+	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/discover"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/x/restricting"
 	"io/ioutil"
 	"log"
@@ -102,7 +108,7 @@ func (r *restrictCases) CaseCreateWrongPlan() error {
 	if err != nil {
 		return err
 	}
-	log.Print(res.ErrMsg)
+	log.Print(res.Code)
 	result := r.CallGetRestrictingInfo(ctx, to)
 	log.Printf("plans: %+v", result)
 	log.Print("begin next RestrictingPlan")
@@ -118,7 +124,7 @@ func (r *restrictCases) CaseCreateWrongPlan() error {
 	if err != nil {
 		return err
 	}
-	log.Print(res2.ErrMsg)
+	log.Print(res2.Code)
 	result2 := r.CallGetRestrictingInfo(ctx, to)
 	log.Printf("plans2: %+v", result2)
 
@@ -146,9 +152,9 @@ func (r *restrictCases) CaseCreatePlan() error {
 	if err := r.WaitTransactionByHash(ctx, txHash); err != nil {
 		return fmt.Errorf("wait Transaction fail:%v", err)
 	}
-
 	//balance on RestrictingContractAddr
 	newRestricting := r.GetBalance(ctx, vm.RestrictingContractAddr, nil)
+	log.Printf("RestrictingContractAddr,before %v,after %v,plan total %v",oldRestrictingContractAddr,newRestricting,totalAmount)
 
 	if new(big.Int).Sub(newRestricting, oldRestrictingContractAddr).Cmp(totalAmount) != 0 {
 		return fmt.Errorf("RestrictingContractAddr balance is wrong,want %v,have %v", new(big.Int).Sub(newRestricting, oldRestrictingContractAddr), totalAmount)
@@ -207,7 +213,39 @@ func (r *restrictCases) CasePledgeLockAndReturn() error {
 	}
 	stakingAccount, _ := AccountPool.Get().(*PriAccount)
 	var input stakingInput
-	input.BlsPubKey = r.params.CasePledgeReturn.Staking.BlsKey
+	tmp:= new(bls.SecretKey)
+	tmp.SetHexString(r.params.CasePledgeReturn.Staking.BlsKey)
+
+
+	var keyEntries bls.PublicKeyHex
+	blsHex := hex.EncodeToString(tmp.GetPublicKey().Serialize())
+	keyEntries.UnmarshalText([]byte(blsHex))
+
+	input.BlsPubKey = keyEntries
+
+	tmp2,err:= tmp.MakeSchnorrNIZKP()
+	proofByte, err := tmp2.MarshalText()
+	if nil != err {
+
+	}
+	var proofHex bls.SchnorrProofHex
+	proofHex.UnmarshalText(proofByte)
+	input.BlsProof = proofHex
+
+	programVersion := uint32(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch)
+
+	p1:= crypto.HexMustToECDSA("4551b78fd05ef46721a51190ba883c4d695f8222a8e04263296327e04b512f0a")
+
+
+	handle:=  node.GetCryptoHandler()
+	handle.SetPrivateKey( p1)
+	versionSign := common.VersionSign{}
+	versionSign.SetBytes(handle.MustSign(programVersion))
+	input.ProgramVersion = programVersion
+	input.ProgramVersionSign = versionSign
+
+
+
 	input.Amount, _ = new(big.Int).SetString("10000000000000000000000000", 10)
 	input.Typ = 0
 	_, add := r.generateEmptyAccount()
@@ -219,7 +257,7 @@ func (r *restrictCases) CasePledgeLockAndReturn() error {
 	input.NodeId = id
 
 	log.Print("begin create staking")
-	txhash2, err := r.CreateStakingTransaction(ctx, stakingAccount, input, nil)
+	txhash2, err := r.CreateStakingTransaction(ctx, stakingAccount, input)
 	if err != nil {
 		return fmt.Errorf("createStakingTransaction fail:%v", err)
 	}

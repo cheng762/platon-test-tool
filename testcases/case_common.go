@@ -12,7 +12,9 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common/vm"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
+	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/discover"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
@@ -28,6 +30,23 @@ import (
 )
 
 const PrefixCase = "Case"
+
+func NewCommonCases(url string) (*commonCases,error) {
+	handle:= new(commonCases)
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return nil,err
+	}
+	handle.client = client
+	handle.corn = cron.New()
+	if err := handle.corn.AddFunc("@every 1s", handle.schedule); err != nil {
+		return nil,err
+	}
+	handle.donech = make(chan struct{}, 0)
+	handle.errch = make(chan error, 0)
+	handle.errors = make([]error, 0)
+	return handle,nil
+}
 
 type commonCases struct {
 	client *ethclient.Client
@@ -161,10 +180,6 @@ func (c *commonCases) WaitTransactionByHash(ctx context.Context, txHash common.H
 	return nil
 }
 
-type ProgramVersionValue struct {
-	ProgramVersion     uint32             `json:"ProgramVersion"`
-	ProgramVersionSign common.VersionSign `json:"ProgramVersionSign"`
-}
 
 //获取ProgramVersion
 func (c *commonCases) GetSchnorrNIZKProve(ctx context.Context) (string, error) {
@@ -195,11 +210,31 @@ type stakingInput struct {
 	Website        string
 	Details        string
 	Amount         *big.Int
-	BlsPubKey      string
+	rewardPer uint16
+	ProgramVersion     uint32
+	ProgramVersionSign common.VersionSign
+	BlsPubKey      bls.PublicKeyHex
+	BlsProof      bls.SchnorrProofHex
 }
 
+func (c *commonCases)WithdrawDelegateReward(ctx context.Context,from *PriAccount )(common.Hash, error)  {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(5000))
+	params = append(params, fnType)
+	send := c.encodePPOS(params)
+
+	txhash, err := SendRawTransaction(ctx, c.client, from, vm.DelegateRewardPoolAddr, "0", send)
+	if err != nil {
+		return common.ZeroHash, err
+	}
+	return txhash, nil
+}
+
+
+
 //创建质押
-func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAccount, input stakingInput, VersionValue *ProgramVersionValue) (common.Hash, error) {
+func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAccount, input stakingInput) (common.Hash, error) {
 	var params [][]byte
 	params = make([][]byte, 0)
 	fnType, _ := rlp.EncodeToBytes(uint16(1000))
@@ -211,10 +246,13 @@ func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAcc
 	website, _ := rlp.EncodeToBytes(input.Website)
 	details, _ := rlp.EncodeToBytes(input.Details)
 	amount, _ := rlp.EncodeToBytes(input.Amount)
-	programVersion, _ := rlp.EncodeToBytes(VersionValue.ProgramVersion)
+	rewardPer,_:= rlp.EncodeToBytes(input.rewardPer)
 
-	programVersionSign, _ := rlp.EncodeToBytes(VersionValue.ProgramVersionSign)
+	programVersion, _ := rlp.EncodeToBytes(input.ProgramVersion)
+	programVersionSign, _ := rlp.EncodeToBytes(input.ProgramVersionSign)
 	blsPubKey, _ := rlp.EncodeToBytes(input.BlsPubKey)
+	blsProof, _ := rlp.EncodeToBytes(input.BlsProof)
+
 	params = append(params, fnType)
 	params = append(params, typ)
 	params = append(params, benefitAddress)
@@ -224,9 +262,11 @@ func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAcc
 	params = append(params, website)
 	params = append(params, details)
 	params = append(params, amount)
+	params = append(params, rewardPer)
 	params = append(params, programVersion)
 	params = append(params, programVersionSign)
 	params = append(params, blsPubKey)
+	params = append(params, blsProof)
 
 	send := c.encodePPOS(params)
 
@@ -252,6 +292,35 @@ func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from
 	if err != nil {
 		return common.ZeroHash, err
 	}
+	return txhash, nil
+}
+
+func (c *commonCases)DeclareVersion(ctx context.Context, from *PriAccount ,nodePrikey *ecdsa.PrivateKey,activeNode discover.NodeID,programVersion uint32)(common.Hash, error)  {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(2004))
+	params = append(params, fnType)
+	vo,_:=rlp.EncodeToBytes(activeNode)
+	v1,_:= rlp.EncodeToBytes(programVersion)
+
+
+	handle:=  node.GetCryptoHandler()
+	handle.SetPrivateKey( nodePrikey)
+	versionSign := common.VersionSign{}
+	versionSign.SetBytes(handle.MustSign(programVersion))
+	v2,err:=rlp.EncodeToBytes(versionSign)
+	if err != nil {
+		return common.ZeroHash,err
+	}
+	params = append(params, vo)
+	params = append(params, v1)
+	params = append(params, v2)
+	send := c.encodePPOS(params)
+	txhash, err := SendRawTransaction(ctx, c.client, from, vm.GovContractAddr, "0", send)
+	if err != nil {
+		return common.ZeroHash, err
+	}
+
 	return txhash, nil
 }
 
@@ -298,11 +367,39 @@ func (c *commonCases) CallGetRelatedListByDelAddr(ctx context.Context, account c
 		panic(err)
 	}
 	var delRelatedQueue staking.DelRelatedQueue
-	if err := json.Unmarshal([]byte(xres.Data), &delRelatedQueue); err != nil {
-		log.Print(xres)
+	//if err := json.Unmarshal([]byte(xres.Ret), &delRelatedQueue); err != nil {
+	//	log.Print(xres)
+	//	panic(err)
+	//}
+	delRelatedQueue = xres.Ret.(staking.DelRelatedQueue)
+	return delRelatedQueue, nil
+}
+
+func (c *commonCases) CallGetDelegateReward(ctx context.Context, account common.Address,nodes []discover.NodeID) (interface{}, error) {
+	var msg ethereum.CallMsg
+	msg.To = &vm.DelegateRewardPoolAddr
+	var params [][]byte
+	fnType, _ := rlp.EncodeToBytes(uint16(5100))
+	add, _ := rlp.EncodeToBytes(account)
+	tmp,_:=rlp.EncodeToBytes(nodes)
+	params = append(params, fnType)
+	params = append(params, add)
+	params = append(params, tmp)
+
+	send := c.encodePPOS(params)
+	msg.Data = send
+	data, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		log.Print("err:",err)
+		return nil, err
+	}
+
+	var xres xcom.Result
+	if err := json.Unmarshal(data, &xres); err != nil {
 		panic(err)
 	}
-	return delRelatedQueue, nil
+
+	return xres.Ret, nil
 }
 
 //减持/撤销委托
@@ -339,6 +436,143 @@ type restrictingReleaseInfo struct {
 	Amount *big.Int `json:"amount"`      // amount representation of the released amount
 }
 
+func (c *commonCases) CallCandidateInfo(ctx context.Context, nodeID discover.NodeID) map[string]interface {}  {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(1105))
+	params = append(params, fnType)
+	id,_:= rlp.EncodeToBytes(nodeID)
+	params = append(params, id)
+	send := c.encodePPOS(params)
+	var msg ethereum.CallMsg
+	msg.Data = send
+	msg.To = &vm.StakingContractAddr
+	res, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		panic(err)
+	}
+	var xres xcom.Result
+	if err := json.Unmarshal(res, &xres); err != nil {
+		panic(err)
+	}
+	if xres.Code == 0 {
+		var result map[string]interface {}
+		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
+		//	log.Print(xres)
+		//	panic(err)
+		//}
+
+		result = xres.Ret.( map[string]interface {})
+
+		return result
+	} else {
+		return nil
+	}
+}
+
+func (c *commonCases) GetVerifierList(ctx context.Context) []interface {}  {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(1100))
+	params = append(params, fnType)
+	send := c.encodePPOS(params)
+	var msg ethereum.CallMsg
+	msg.Data = send
+	msg.To = &vm.StakingContractAddr
+	res, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		panic(err)
+	}
+	var xres xcom.Result
+	if err := json.Unmarshal(res, &xres); err != nil {
+		panic(err)
+	}
+	if xres.Code == 0 {
+		var result []interface {}
+		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
+		//	log.Print(xres)
+		//	panic(err)
+		//}
+
+		result = xres.Ret.( []interface {})
+
+		return result
+	} else {
+		return nil
+	}
+}
+
+func (c *commonCases)GetDelegateInfo(ctx context.Context,stakingBlockNum uint64,delAddr common.Address,nodeId discover.NodeID)map[string]interface {} {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(1104))
+	params = append(params, fnType)
+	stk,_:= rlp.EncodeToBytes(stakingBlockNum)
+	params = append(params, stk)
+	del,_:= rlp.EncodeToBytes(delAddr)
+	params = append(params, del)
+	n,_:= rlp.EncodeToBytes(nodeId)
+	params = append(params, n)
+	send := c.encodePPOS(params)
+	var msg ethereum.CallMsg
+	msg.Data = send
+	msg.To = &vm.StakingContractAddr
+	res, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		panic(err)
+	}
+	var xres xcom.Result
+	if err := json.Unmarshal(res, &xres); err != nil {
+		panic(err)
+	}
+	if xres.Code == 0 {
+		var result map[string]interface {}
+		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
+		//	log.Print(xres)
+		//	panic(err)
+		//}
+
+		result = xres.Ret.( map[string]interface {})
+
+		return result
+	} else {
+		return nil
+	}
+}
+
+func (c *commonCases) GetGetValidatorList(ctx context.Context) []interface {}  {
+	var params [][]byte
+	params = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(uint16(1101))
+	params = append(params, fnType)
+	send := c.encodePPOS(params)
+	var msg ethereum.CallMsg
+	msg.Data = send
+	msg.To = &vm.StakingContractAddr
+	res, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		panic(err)
+	}
+	var xres xcom.Result
+	if err := json.Unmarshal(res, &xres); err != nil {
+		panic(err)
+	}
+	if xres.Code == 0 {
+		var result []interface {}
+		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
+		//	log.Print(xres)
+		//	panic(err)
+		//}
+
+		result = xres.Ret.( []interface {})
+
+		return result
+	} else {
+		return nil
+	}
+}
+
+
 //获取锁仓信息
 func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common.Address) restrictingResult {
 	var params [][]byte
@@ -363,12 +597,13 @@ func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common
 	if err := json.Unmarshal(res, &xres); err != nil {
 		panic(err)
 	}
-	if xres.ErrMsg == "" {
+	if xres.Code == 0 {
 		var result restricting.Result
-		if err := json.Unmarshal([]byte(xres.Data), &result); err != nil {
-			log.Print(xres)
-			panic(err)
-		}
+		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
+		//	log.Print(xres)
+		//	panic(err)
+		//}
+		result = xres.Ret.(restricting.Result)
 		var res restrictingResult
 		res.Balance = result.Balance.ToInt()
 		res.Pledge = result.Pledge.ToInt()

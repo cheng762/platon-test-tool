@@ -23,6 +23,7 @@ type Config struct {
 	Url                    string         `json:"url"`
 	Dir                    string         `json:"dir"`
 	RestrictingConfigFile  string         `json:"restricting_config_file"`
+	RewardConfigFile  string         `json:"reward_config_file"`
 	PrivateKeyFile         string         `json:"private_key_file"`
 	DefaultAccountAddrFile string         `json:"default_account_addr_file"`
 }

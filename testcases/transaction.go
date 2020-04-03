@@ -79,7 +79,7 @@ func SendRawTransaction(ctx context.Context, client *ethclient.Client, from *Pri
 		from.Nonce = nonce
 	}
 
-	newTx := getSignedTransaction(from, to, v, gas, gasPrise, data)
+	newTx := getSignedTransaction(from, to, v, gas+500000, gasPrise.Add(gasPrise,big.NewInt(6000000)), data)
 
 	if err := client.SendTransaction(ctx, newTx); err != nil {
 		panic(err)
