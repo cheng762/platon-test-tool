@@ -18,6 +18,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/x/reward"
 	"github.com/PlatONnetwork/PlatON-Go/x/xcom"
+	"github.com/PlatONnetwork/platon-test-tool/Dto"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -363,7 +364,7 @@ func (r *rewardCases) CaseWithdrawDelegateReward() error {
 func (r *rewardCases) CaseCreateStaking() error {
 	ctx := context.Background()
 	stakingAccount, _ := AccountPool.Get().(*PriAccount)
-	var input stakingInput
+	var input Dto.Staking
 	err := bls.Init(int(bls.BLS12_381))
 	if err != nil {
 		return err
@@ -418,7 +419,7 @@ func (r *rewardCases) CaseCreateStaking() error {
 	input.BenefitAddress = add
 
 	input.NodeId = discover.PubkeyID(&nodeKey.PublicKey)
-	input.rewardPer = 1000
+	input.RewardPer = 1000
 	log.Print("begin create staking")
 	stakingTransaction, err := r.CreateStakingTransaction(ctx, stakingAccount, input)
 	if err := r.WaitTransactionByHash(ctx, stakingTransaction); err != nil {

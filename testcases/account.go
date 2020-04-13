@@ -9,6 +9,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/secp256k1"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"path"
 	"sync"
@@ -20,9 +21,10 @@ var (
 )
 
 type PriAccount struct {
-	Priv    *ecdsa.PrivateKey
-	Nonce   uint64
-	Address common.Address
+	Priv     *ecdsa.PrivateKey
+	Nonce    uint64
+	Address  common.Address
+	gasPrice *big.Int
 }
 
 func generateAccount(size int) {
@@ -30,7 +32,7 @@ func generateAccount(size int) {
 	for i := 0; i < size; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		allAccounts[address] = &PriAccount{privateKey, 0, address}
+		allAccounts[address] = &PriAccount{privateKey, 0, address, nil}
 		addrs[i] = address
 	}
 	savePrivateKeyPool()

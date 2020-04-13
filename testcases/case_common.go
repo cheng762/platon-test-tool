@@ -12,7 +12,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common/vm"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/discover"
@@ -21,6 +20,11 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/x/restricting"
 	"github.com/PlatONnetwork/PlatON-Go/x/staking"
 	"github.com/PlatONnetwork/PlatON-Go/x/xcom"
+	"github.com/PlatONnetwork/platon-test-tool/Dto"
+	common2 "github.com/PlatONnetwork/platon-test-tool/common"
+
+	contract "github.com/PlatONnetwork/PlatON-Go/core/vm"
+
 	"github.com/robfig/cron"
 	"log"
 	"math/big"
@@ -31,25 +35,8 @@ import (
 
 const PrefixCase = "Case"
 
-func NewCommonCases(url string) (*commonCases,error) {
-	handle:= new(commonCases)
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return nil,err
-	}
-	handle.client = client
-	handle.corn = cron.New()
-	if err := handle.corn.AddFunc("@every 1s", handle.schedule); err != nil {
-		return nil,err
-	}
-	handle.donech = make(chan struct{}, 0)
-	handle.errch = make(chan error, 0)
-	handle.errors = make([]error, 0)
-	return handle,nil
-}
-
 type commonCases struct {
-	client *ethclient.Client
+	TxManager common2.TxManager
 	//adrs   []common.Address
 	corn   *cron.Cron
 	jobs   []*job
@@ -101,7 +88,7 @@ func (c *commonCases) Prepare() error {
 	c.client = client
 	//	c.adrs = GetAllAddress()
 	c.corn = cron.New()
-	if err := c.corn.AddFunc("@every 1s", c.schedule); err != nil {
+	if _, err := c.corn.AddFunc("@every 1s", c.schedule); err != nil {
 		return err
 	}
 	c.donech = make(chan struct{}, 0)
@@ -132,9 +119,10 @@ func (c *commonCases) GetNonceAt(ctx context.Context, account common.Address, bl
 	return c.client.NonceAt(ctx, account, blockNumber)
 }
 
-func (c *commonCases) encodePPOS(params [][]byte) []byte {
+func (c *commonCases) encodePPOS(funcType uint16, params ...interface{}) []byte {
+	par := buildParams(funcType, params...)
 	buf := new(bytes.Buffer)
-	err := rlp.Encode(buf, params)
+	err := rlp.Encode(buf, par)
 	if err != nil {
 		panic(fmt.Errorf("encode rlp data fail: %v", err))
 	}
@@ -180,14 +168,12 @@ func (c *commonCases) WaitTransactionByHash(ctx context.Context, txHash common.H
 	return nil
 }
 
-
 //获取ProgramVersion
 func (c *commonCases) GetSchnorrNIZKProve(ctx context.Context) (string, error) {
 	prove, err := c.client.GetSchnorrNIZKProve(ctx)
 	if err != nil {
 		return "", err
 	}
-
 	return prove, nil
 }
 
@@ -197,148 +183,35 @@ func (c *commonCases) CallProgramVersion(ctx context.Context) (*params.ProgramVe
 	if err != nil {
 		return nil, err
 	}
-
 	return pg, nil
 }
 
-type stakingInput struct {
-	Typ            uint16
-	BenefitAddress common.Address
-	NodeId         discover.NodeID
-	ExternalId     string
-	NodeName       string
-	Website        string
-	Details        string
-	Amount         *big.Int
-	rewardPer uint16
-	ProgramVersion     uint32
-	ProgramVersionSign common.VersionSign
-	BlsPubKey      bls.PublicKeyHex
-	BlsProof      bls.SchnorrProofHex
+func (c *commonCases) WithdrawDelegateReward(ctx context.Context, from *PriAccount) (common.Hash, error) {
+	return c.SendPPosTraction(ctx, from, contract.TxWithdrawDelegateReward)
 }
 
-func (c *commonCases)WithdrawDelegateReward(ctx context.Context,from *PriAccount )(common.Hash, error)  {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(5000))
-	params = append(params, fnType)
-	send := c.encodePPOS(params)
-
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.DelegateRewardPoolAddr, "0", send)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-	return txhash, nil
-}
-
-
-
-//创建质押
-func (c *commonCases) CreateStakingTransaction(ctx context.Context, from *PriAccount, input stakingInput) (common.Hash, error) {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(1000))
-	typ, _ := rlp.EncodeToBytes(input.Typ)
-	benefitAddress, _ := rlp.EncodeToBytes(input.BenefitAddress)
-	nodeId, _ := rlp.EncodeToBytes(input.NodeId)
-	externalId, _ := rlp.EncodeToBytes(input.ExternalId)
-	nodeName, _ := rlp.EncodeToBytes(input.NodeName)
-	website, _ := rlp.EncodeToBytes(input.Website)
-	details, _ := rlp.EncodeToBytes(input.Details)
-	amount, _ := rlp.EncodeToBytes(input.Amount)
-	rewardPer,_:= rlp.EncodeToBytes(input.rewardPer)
-
-	programVersion, _ := rlp.EncodeToBytes(input.ProgramVersion)
-	programVersionSign, _ := rlp.EncodeToBytes(input.ProgramVersionSign)
-	blsPubKey, _ := rlp.EncodeToBytes(input.BlsPubKey)
-	blsProof, _ := rlp.EncodeToBytes(input.BlsProof)
-
-	params = append(params, fnType)
-	params = append(params, typ)
-	params = append(params, benefitAddress)
-	params = append(params, nodeId)
-	params = append(params, externalId)
-	params = append(params, nodeName)
-	params = append(params, website)
-	params = append(params, details)
-	params = append(params, amount)
-	params = append(params, rewardPer)
-	params = append(params, programVersion)
-	params = append(params, programVersionSign)
-	params = append(params, blsPubKey)
-	params = append(params, blsProof)
-
-	send := c.encodePPOS(params)
-
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.StakingContractAddr, "0", send)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-	return txhash, nil
-}
-
-//创建锁仓
-func (c *commonCases) CreateRestrictingPlanTransaction(ctx context.Context, from *PriAccount, to common.Address, plans []restricting.RestrictingPlan) (common.Hash, error) {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(4000))
-	params = append(params, fnType)
-	account, _ := rlp.EncodeToBytes(to)
-	plansByte, _ := rlp.EncodeToBytes(plans)
-	params = append(params, account)
-	params = append(params, plansByte)
-	send := c.encodePPOS(params)
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.RestrictingContractAddr, "0", send)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-	return txhash, nil
-}
-
-func (c *commonCases)DeclareVersion(ctx context.Context, from *PriAccount ,nodePrikey *ecdsa.PrivateKey,activeNode discover.NodeID,programVersion uint32)(common.Hash, error)  {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(2004))
-	params = append(params, fnType)
-	vo,_:=rlp.EncodeToBytes(activeNode)
-	v1,_:= rlp.EncodeToBytes(programVersion)
-
-
-	handle:=  node.GetCryptoHandler()
-	handle.SetPrivateKey( nodePrikey)
+func (c *commonCases) DeclareVersion(ctx context.Context, from *PriAccount, nodePrikey *ecdsa.PrivateKey, activeNode discover.NodeID, programVersion uint32) (common.Hash, error) {
+	handle := node.GetCryptoHandler()
+	handle.SetPrivateKey(nodePrikey)
 	versionSign := common.VersionSign{}
 	versionSign.SetBytes(handle.MustSign(programVersion))
-	v2,err:=rlp.EncodeToBytes(versionSign)
-	if err != nil {
-		return common.ZeroHash,err
-	}
-	params = append(params, vo)
-	params = append(params, v1)
-	params = append(params, v2)
-	send := c.encodePPOS(params)
-	txhash, err := SendRawTransaction(ctx, c.client, from, vm.GovContractAddr, "0", send)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-
-	return txhash, nil
+	return c.SendPPosTraction(ctx, from, contract.Declare, activeNode, programVersion, versionSign)
 }
 
 //创建委托
 func (c *commonCases) DelegateTransaction(ctx context.Context, account *PriAccount, nodeID discover.NodeID, typ uint16, amount *big.Int) (common.Hash, error) {
-	fnType, _ := rlp.EncodeToBytes(uint16(1004))
-	encodeTyp, _ := rlp.EncodeToBytes(typ)
-	id, _ := rlp.EncodeToBytes(nodeID)
-	encodeAmount, _ := rlp.EncodeToBytes(amount)
+	return c.SendPPosTraction(ctx, account, contract.TxDelegate, typ, nodeID, amount)
+}
 
-	var params [][]byte
-	params = append(params, fnType)
-	params = append(params, encodeTyp)
-	params = append(params, id)
-	params = append(params, encodeAmount)
-	send := c.encodePPOS(params)
+//减持/撤销委托
+func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBlockNum uint64, nodeID discover.NodeID, account *PriAccount, amount *big.Int) (common.Hash, error) {
+	return c.SendPPosTraction(ctx, account, contract.TxWithdrewDelegate, stakingBlockNum, nodeID, amount)
+}
 
-	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send)
+func (c *commonCases) SendPPosTraction(ctx context.Context, account *PriAccount, funcType uint16, params ...interface{}) (common.Hash, error) {
+	send := c.encodePPOS(funcType, params...)
+	toadd := funcTypeToContractAddress(funcType)
+	txhash, err := SendRawTransaction(ctx, c.client, account, *toadd, "0", send)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -347,79 +220,15 @@ func (c *commonCases) DelegateTransaction(ctx context.Context, account *PriAccou
 
 //查询当前账户地址所委托的节点的NodeID和质押Id
 func (c *commonCases) CallGetRelatedListByDelAddr(ctx context.Context, account common.Address) (staking.DelRelatedQueue, error) {
-	var msg ethereum.CallMsg
-	msg.To = &vm.StakingContractAddr
-
-	var params [][]byte
-	fnType, _ := rlp.EncodeToBytes(uint16(1103))
-	add, _ := rlp.EncodeToBytes(account)
-	params = append(params, fnType)
-	params = append(params, add)
-	send := c.encodePPOS(params)
-
-	msg.Data = send
-	data, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		return nil, err
-	}
-	var xres xcom.Result
-	if err := json.Unmarshal(data, &xres); err != nil {
-		panic(err)
-	}
+	xres := c.CallPPosContract(ctx, 1103, account)
 	var delRelatedQueue staking.DelRelatedQueue
-	//if err := json.Unmarshal([]byte(xres.Ret), &delRelatedQueue); err != nil {
-	//	log.Print(xres)
-	//	panic(err)
-	//}
 	delRelatedQueue = xres.Ret.(staking.DelRelatedQueue)
 	return delRelatedQueue, nil
 }
 
-func (c *commonCases) CallGetDelegateReward(ctx context.Context, account common.Address,nodes []discover.NodeID) (interface{}, error) {
-	var msg ethereum.CallMsg
-	msg.To = &vm.DelegateRewardPoolAddr
-	var params [][]byte
-	fnType, _ := rlp.EncodeToBytes(uint16(5100))
-	add, _ := rlp.EncodeToBytes(account)
-	tmp,_:=rlp.EncodeToBytes(nodes)
-	params = append(params, fnType)
-	params = append(params, add)
-	params = append(params, tmp)
-
-	send := c.encodePPOS(params)
-	msg.Data = send
-	data, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		log.Print("err:",err)
-		return nil, err
-	}
-
-	var xres xcom.Result
-	if err := json.Unmarshal(data, &xres); err != nil {
-		panic(err)
-	}
-
+func (c *commonCases) CallGetDelegateReward(ctx context.Context, account common.Address, nodes []discover.NodeID) (interface{}, error) {
+	xres := c.CallPPosContract(ctx, 5100, account, nodes)
 	return xres.Ret, nil
-}
-
-//减持/撤销委托
-func (c *commonCases) WithdrewDelegateTransaction(ctx context.Context, stakingBlockNum uint64, nodeID discover.NodeID, account *PriAccount, amount *big.Int) (common.Hash, error) {
-	fnType, _ := rlp.EncodeToBytes(uint16(1005))
-	stakingNum, _ := rlp.EncodeToBytes(stakingBlockNum)
-	noid, _ := rlp.EncodeToBytes(nodeID)
-	amount10, _ := rlp.EncodeToBytes(amount)
-	var params [][]byte
-	params = append(params, fnType)
-	params = append(params, stakingNum)
-	params = append(params, noid)
-	params = append(params, amount10)
-	send := c.encodePPOS(params)
-
-	txhash, err := SendRawTransaction(ctx, c.client, account, vm.StakingContractAddr, "0", send)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-	return txhash, nil
 }
 
 // for plugin test
@@ -436,173 +245,53 @@ type restrictingReleaseInfo struct {
 	Amount *big.Int `json:"amount"`      // amount representation of the released amount
 }
 
-func (c *commonCases) CallCandidateInfo(ctx context.Context, nodeID discover.NodeID) map[string]interface {}  {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(1105))
-	params = append(params, fnType)
-	id,_:= rlp.EncodeToBytes(nodeID)
-	params = append(params, id)
-	send := c.encodePPOS(params)
-	var msg ethereum.CallMsg
-	msg.Data = send
-	msg.To = &vm.StakingContractAddr
-	res, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		panic(err)
+func (c *commonCases) CallCandidateInfo(ctx context.Context, nodeID discover.NodeID) map[string]interface{} {
+	xres := c.CallPPosContract(ctx, 1105, nodeID)
+	if xres.Code != 0 {
+		return nil
 	}
-	var xres xcom.Result
-	if err := json.Unmarshal(res, &xres); err != nil {
-		panic(err)
+	var result map[string]interface{}
+	result = xres.Ret.(map[string]interface{})
+	return result
+}
+
+func (c *commonCases) GetVerifierList(ctx context.Context) []interface{} {
+	xres := c.CallPPosContract(ctx, 1100)
+	if xres.Code != 0 {
+		return nil
 	}
+	var result []interface{}
+	result = xres.Ret.([]interface{})
+	return result
+}
+
+func (c *commonCases) GetDelegateInfo(ctx context.Context, stakingBlockNum uint64, delAddr common.Address, nodeId discover.NodeID) map[string]interface{} {
+	xres := c.CallPPosContract(ctx, contract.QueryDelegateInfo, stakingBlockNum, delAddr, nodeId)
 	if xres.Code == 0 {
-		var result map[string]interface {}
-		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
-		//	log.Print(xres)
-		//	panic(err)
-		//}
-
-		result = xres.Ret.( map[string]interface {})
-
+		var result map[string]interface{}
+		result = xres.Ret.(map[string]interface{})
 		return result
 	} else {
 		return nil
 	}
 }
 
-func (c *commonCases) GetVerifierList(ctx context.Context) []interface {}  {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(1100))
-	params = append(params, fnType)
-	send := c.encodePPOS(params)
-	var msg ethereum.CallMsg
-	msg.Data = send
-	msg.To = &vm.StakingContractAddr
-	res, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		panic(err)
-	}
-	var xres xcom.Result
-	if err := json.Unmarshal(res, &xres); err != nil {
-		panic(err)
-	}
+func (c *commonCases) GetGetValidatorList(ctx context.Context) []interface{} {
+	xres := c.CallPPosContract(ctx, 1101)
 	if xres.Code == 0 {
-		var result []interface {}
-		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
-		//	log.Print(xres)
-		//	panic(err)
-		//}
-
-		result = xres.Ret.( []interface {})
-
+		var result []interface{}
+		result = xres.Ret.([]interface{})
 		return result
 	} else {
 		return nil
 	}
 }
-
-func (c *commonCases)GetDelegateInfo(ctx context.Context,stakingBlockNum uint64,delAddr common.Address,nodeId discover.NodeID)map[string]interface {} {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(1104))
-	params = append(params, fnType)
-	stk,_:= rlp.EncodeToBytes(stakingBlockNum)
-	params = append(params, stk)
-	del,_:= rlp.EncodeToBytes(delAddr)
-	params = append(params, del)
-	n,_:= rlp.EncodeToBytes(nodeId)
-	params = append(params, n)
-	send := c.encodePPOS(params)
-	var msg ethereum.CallMsg
-	msg.Data = send
-	msg.To = &vm.StakingContractAddr
-	res, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		panic(err)
-	}
-	var xres xcom.Result
-	if err := json.Unmarshal(res, &xres); err != nil {
-		panic(err)
-	}
-	if xres.Code == 0 {
-		var result map[string]interface {}
-		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
-		//	log.Print(xres)
-		//	panic(err)
-		//}
-
-		result = xres.Ret.( map[string]interface {})
-
-		return result
-	} else {
-		return nil
-	}
-}
-
-func (c *commonCases) GetGetValidatorList(ctx context.Context) []interface {}  {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(1101))
-	params = append(params, fnType)
-	send := c.encodePPOS(params)
-	var msg ethereum.CallMsg
-	msg.Data = send
-	msg.To = &vm.StakingContractAddr
-	res, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		panic(err)
-	}
-	var xres xcom.Result
-	if err := json.Unmarshal(res, &xres); err != nil {
-		panic(err)
-	}
-	if xres.Code == 0 {
-		var result []interface {}
-		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
-		//	log.Print(xres)
-		//	panic(err)
-		//}
-
-		result = xres.Ret.( []interface {})
-
-		return result
-	} else {
-		return nil
-	}
-}
-
 
 //获取锁仓信息
 func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common.Address) restrictingResult {
-	var params [][]byte
-	params = make([][]byte, 0)
-	fnType, _ := rlp.EncodeToBytes(uint16(4100))
-	params = append(params, fnType)
-	accountBytes, err := rlp.EncodeToBytes(account)
-	if err != nil {
-		panic(err)
-	}
-	params = append(params, accountBytes)
-	send := c.encodePPOS(params)
-
-	var msg ethereum.CallMsg
-	msg.Data = send
-	msg.To = &vm.RestrictingContractAddr
-	res, err := c.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		panic(err)
-	}
-	var xres xcom.Result
-	if err := json.Unmarshal(res, &xres); err != nil {
-		panic(err)
-	}
+	xres := c.CallPPosContract(ctx, 4100, account)
 	if xres.Code == 0 {
 		var result restricting.Result
-		//if err := json.Unmarshal([]byte(xres.Ret), &result); err != nil {
-		//	log.Print(xres)
-		//	panic(err)
-		//}
 		result = xres.Ret.(restricting.Result)
 		var res restrictingResult
 		res.Balance = result.Balance.ToInt()
@@ -616,6 +305,33 @@ func (c *commonCases) CallGetRestrictingInfo(ctx context.Context, account common
 	} else {
 		return restrictingResult{}
 	}
+}
+
+func (c *commonCases) CallGetGovernParamValue(ctx context.Context, module, name string) (string, error) {
+	xres := c.CallPPosContract(ctx, contract.GetGovernParamValue, module, name)
+	if xres.Code == 0 {
+		var result string
+		result = xres.Ret.(string)
+		return result, nil
+	} else {
+		return "", fmt.Errorf("query GovernParamValue fail,code:%v", xres.Code)
+	}
+}
+
+func (c *commonCases) CallPPosContract(ctx context.Context, funcType uint16, params ...interface{}) xcom.Result {
+	send := c.encodePPOS(funcType, params...)
+	var msg ethereum.CallMsg
+	msg.Data = send
+	msg.To = funcTypeToContractAddress(funcType)
+	res, err := c.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		panic(err)
+	}
+	var xres xcom.Result
+	if err := json.Unmarshal(res, &xres); err != nil {
+		panic(err)
+	}
+	return xres
 }
 
 //获取账户金额
@@ -700,4 +416,36 @@ func (c *commonCases) schedule() {
 		c.donech <- struct{}{}
 		close(c.donech)
 	}
+}
+
+func buildParams(funcType uint16, params ...interface{}) [][]byte {
+	var res [][]byte
+	res = make([][]byte, 0)
+	fnType, _ := rlp.EncodeToBytes(funcType)
+	res = append(res, fnType)
+	for _, param := range params {
+		val, err := rlp.EncodeToBytes(param)
+		if err != nil {
+			panic(err)
+		}
+		res = append(res, val)
+	}
+	return res
+}
+
+func funcTypeToContractAddress(funcType uint16) *common.Address {
+	toadd := common.ZeroAddr
+	switch {
+	case 0 < funcType && funcType < 2000:
+		toadd = vm.StakingContractAddr
+	case funcType >= 2000 && funcType < 3000:
+		toadd = vm.GovContractAddr
+	case funcType >= 3000 && funcType < 4000:
+		toadd = vm.SlashingContractAddr
+	case funcType >= 4000 && funcType < 5000:
+		toadd = vm.RewardManagerPoolAddr
+	case funcType >= 5000 && funcType < 6000:
+		toadd = vm.DelegateRewardPoolAddr
+	}
+	return &toadd
 }

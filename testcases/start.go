@@ -34,6 +34,7 @@ func init() {
 	allCases["init_token"] = new(initCases)
 	allCases["reward"] = new(rewardCases)
 	allCases["gov"] = new(govCases)
+	allCases["staking"] = new(stakingCases)
 
 }
 

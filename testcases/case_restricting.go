@@ -15,6 +15,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p/discover"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/x/restricting"
+	"github.com/PlatONnetwork/platon-test-tool/Dto"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -212,7 +213,7 @@ func (r *restrictCases) CasePledgeLockAndReturn() error {
 		return err
 	}
 	stakingAccount, _ := AccountPool.Get().(*PriAccount)
-	var input stakingInput
+	var input Dto.Staking
 	tmp:= new(bls.SecretKey)
 	tmp.SetHexString(r.params.CasePledgeReturn.Staking.BlsKey)
 

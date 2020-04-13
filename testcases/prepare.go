@@ -1,10 +1,10 @@
 package testcases
 
 import (
-	"context"
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/PlatONnetwork/PlatON-Go/ethclient"
+	"github.com/PlatONnetwork/platon-test-tool/common"
+
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -35,13 +35,11 @@ func PrepareAccount(size int, value string) error {
 	if err != nil {
 		return fmt.Errorf("hex to ecdsa fail:%v", err)
 	}
-	configAccount := &PriAccount{pri, 0, config.Account}
-	client, err := ethclient.Dial(config.Url)
-	if err != nil {
-		return err
-	}
+	configAccount := &common.PriAccount{pri, 0, config.Account, nil}
+	txm := new(common.TxManager)
+	node := txm.AddNode(config.Url)
 	for addr := range allAccounts {
-		hash, err := SendRawTransaction(context.Background(), client, configAccount, addr, value, nil)
+		hash, err := node.SendTraction(configAccount, addr, value, nil)
 		if err != nil {
 			return fmt.Errorf("prepare error,send from coinbase error,%s", err.Error())
 		}
