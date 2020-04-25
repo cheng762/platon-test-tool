@@ -13,22 +13,6 @@ var (
 	config = Config{}
 )
 
-const (
-	DefaultConfigFilePath = "/config.json"
-)
-
-type Config struct {
-	Account                common.Address `json:"account"` //address in genesis
-	GeinisPrikey           string         `json:"prikey"`
-	Url                    string         `json:"url"`
-	Dir                    string         `json:"dir"`
-	RestrictingConfigFile  string         `json:"restricting_config_file"`
-	RewardConfigFile       string         `json:"reward_config_file"`
-	StakingConfigFile      string         `json:"staking_config_file"`
-	PrivateKeyFile         string         `json:"private_key_file"`
-	DefaultAccountAddrFile string         `json:"default_account_addr_file"`
-}
-
 func parseConfigJson(configPath string) {
 	if configPath == "" {
 		dir, _ := os.Getwd()

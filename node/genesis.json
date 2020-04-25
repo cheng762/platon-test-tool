@@ -1,0 +1,94 @@
+{
+	"config": {
+		"chainId": 102,
+		"eip155Block": 3,
+		"cbft": {
+			"initialNodes": [
+			   {
+		          "node":"enode://be5eb1ddb845a2a27b80c9416c028ad6667e5828eb833ba234f68b79b1d8b49af949f25734325ec2a82736ca29a14298ebfae9cf966323046e6abcb9ece11954@127.0.0.1:16789",
+		          "blsPubKey":"af639d1f91b4a39f802a2c55ba31d64105e696945d8991a64a0091d4368d886bc07ba6141e9c13a402f2b3b4ff504916f3ddfe2a3c81c125fe8e8ee6fd25908b3637e01736569a1bb785dff353f2ded2a429a62f0a8f4b5be6608c2ba458ef84"
+		        },
+		        {
+		          "node":"enode://87df4cffb4e6be36a3069f2b782573f1e3676975a4922f177ac69ccc56b9d28dc1b5bbf776b8201e34ab9afb9c9b79c683a638c868fd36350d4c773da3091a8f@127.0.0.1:16790",
+		          "blsPubKey":"69e9cf543b4d1da199fd8c6a4c98d03ca1bff5829fa849511f0d37dc1060d6188a445d1de97011e669a884798069ae0701422d15dd80bf0af23788f9445f10e6e8376562951469b4cb971b6d4b8dd612d5bd627acd00820c5794c0e5b8883f15"
+		        },
+		        {
+		          "node":"enode://2cb875fd942f30d100031499d5dddc9cd2c9fd22830348bfaf78e2c0af4213e397dd3c618b44c9b55bfeb17e310abc6efef0ab48dfdd8a28912f21284010278f@127.0.0.1:16791",
+		          "blsPubKey":"e6013fe6e5ecf586a97994c2ca281eedc7ce74bf7d548285a4b51f6c651c96d4380671ea7275700daa923e2552c05609005a0b17d5ed3152586c8017cb6a38fad56bf192205832fc2f2e70c4b88ad97637d504e87b3ae7c44abed7244977b20f"
+		        },
+		        {
+		          "node":"enode://d16bd2059b8108816140bf5aff848a7b7d89657e55dadca4831351e04ee568bd7d58b33be117aa24e74375b7a54b0aa3b0158aa05bca60937ef6719b048b6135@127.0.0.1:16792",
+		          "blsPubKey":"89ef24afd1655728a56decf84115507d900a4f767addd2f96c08aa436e1b7397fb0c1358f8c307d7fa022358fbde4304c8f3d53d9cd888316a38f7538a0de7db92e654991fae1e842d8a9ffb7aeee3ee365ea9b77da50329cb483d83fded3c04"
+		        }
+			],
+			"epoch": 1,
+			"amount": 10,
+			"validatorMode": "ppos",
+			"period": 10000
+		},
+				"genesisVersion": 1793
+	},
+	"economicModel":{
+		"common":{
+            "maxEpochMinutes":4,
+            "maxConsensusVals":4,
+            "additionalCycleTime":28
+        },
+        "staking":{
+            "stakeThreshold": 1000000000000000000000000,
+            "operatingThreshold": 10000000000000000000,
+            "maxValidators": 30,
+            "hesitateRatio": 1,
+            "unStakeFreezeDuration": 2
+        },
+        "slashing":{
+           "slashFractionDuplicateSign": 100,
+           "duplicateSignReportReward": 50,
+           "maxEvidenceAge":1,
+           "slashBlocksReward":20
+        },
+         "gov": {
+            "versionProposalVoteDurationSeconds": 160,
+            "versionProposalSupportRate": 0.667,
+            "textProposalVoteDurationSeconds": 160,
+            "textProposalVoteRate": 0.5,
+            "textProposalSupportRate": 0.667,          
+            "cancelProposalVoteRate": 0.50,
+            "cancelProposalSupportRate": 0.667,
+            "paramProposalVoteDurationSeconds": 160,
+            "paramProposalVoteRate": 0.50,
+            "paramProposalSupportRate": 0.667      
+        },
+        "reward":{
+            "newBlockRate": 50,
+            "platonFoundationYear": 10 
+        },
+        "innerAcc":{
+            "platonFundAccount": "0x493301712671ada506ba6ca7891f436d29185821",
+            "platonFundBalance": 0,
+            "cdfAccount": "0xC7d5b0261ce3FC6C89a94e241632cae21DCfF9F8",
+            "cdfBalance": 331811981000000000000000000
+        }
+	},
+	"nonce": "0x0376e56dffd12ab53bb149bda4e0cbce2b6aabe4cccc0df0b5a39e12977a2fcd23",
+	"timestamp": "0x5bc94a8a",
+	"extraData": "0xd782070186706c61746f6e86676f312e3131856c696e757800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	"gasLimit": "0x99947b760",
+	"alloc": {
+		"0xf66CB3C7f28D058AE3C6eD9493C6A9e2a7d7786d": {
+      		"balance": "9718188019000000000000000000"
+    	},
+		"1000000000000000000000000000000000000001": {
+			"balance": "0"
+		},
+		"1000000000000000000000000000000000000002": {
+			"balance": "0"
+		},
+		"1000000000000000000000000000000000000003": {
+			"balance": "200000000000000000000000000"
+		}
+	},
+	"number": "0x0",
+	"gasUsed": "0x0",
+	"parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+}

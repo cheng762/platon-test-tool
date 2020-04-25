@@ -28,23 +28,3 @@ func prepareAccount(c *cli.Context) {
 		panic(fmt.Errorf("send raw transaction error,%s", err.Error()))
 	}
 }
-
-func PrepareAccount(size int, value string) error {
-	generateAccount(size)
-	pri, err := crypto.HexToECDSA(config.GeinisPrikey)
-	if err != nil {
-		return fmt.Errorf("hex to ecdsa fail:%v", err)
-	}
-	configAccount := &common.PriAccount{pri, 0, config.Account, nil}
-	txm := new(common.TxManager)
-	node := txm.AddNode(config.Url)
-	for addr := range allAccounts {
-		hash, err := node.SendTraction(configAccount, addr, value, nil)
-		if err != nil {
-			return fmt.Errorf("prepare error,send from coinbase error,%s", err.Error())
-		}
-		fmt.Printf("transfer hash: %s \n", hash.String())
-	}
-	fmt.Printf("prepare %d account finish...", size)
-	return nil
-}

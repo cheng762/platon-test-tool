@@ -15,30 +15,6 @@ import (
 	"sync"
 )
 
-var (
-	allAccounts = make(map[common.Address]*PriAccount)
-	AccountPool sync.Pool
-)
-
-type PriAccount struct {
-	Priv     *ecdsa.PrivateKey
-	Nonce    uint64
-	Address  common.Address
-	gasPrice *big.Int
-}
-
-func generateAccount(size int) {
-	addrs := make([]common.Address, size)
-	for i := 0; i < size; i++ {
-		privateKey, _ := crypto.GenerateKey()
-		address := crypto.PubkeyToAddress(privateKey.PublicKey)
-		allAccounts[address] = &PriAccount{privateKey, 0, address, nil}
-		addrs[i] = address
-	}
-	savePrivateKeyPool()
-	saveAddrs(addrs)
-}
-
 func savePrivateKeyPool() {
 	pkFile := path.Join(config.Dir, config.PrivateKeyFile)
 	gob.Register(&secp256k1.BitCurve{})

@@ -1,10 +1,22 @@
 package common
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/vm"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 )
+
+func encodePPOS(funcType uint16, params ...interface{}) ([]byte, common.Address) {
+	par := buildParams(funcType, params...)
+	buf := new(bytes.Buffer)
+	err := rlp.Encode(buf, par)
+	if err != nil {
+		panic(fmt.Errorf("encode rlp data fail: %v", err))
+	}
+	return buf.Bytes(), funcTypeToContractAddress(funcType)
+}
 
 func buildParams(funcType uint16, params ...interface{}) [][]byte {
 	var res [][]byte
