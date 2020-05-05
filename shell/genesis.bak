@@ -4,29 +4,13 @@
 		"eip155Block": 3,
 		"cbft": {
 			"initialNodes": [
-			   {
-		          "node":"enode://your-node-pubkey1@127.0.0.1:16789",
-		          "blsPubKey":"blsPubKey1"
-		        },
-		        {
-		          "node":"enode://your-node-pubkey2@127.0.0.1:16790",
-		          "blsPubKey":"blsPubKey2"
-		        },
-		        {
-		          "node":"enode://your-node-pubkey3@127.0.0.1:16791",
-		          "blsPubKey":"blsPubKey3"
-		        },
-		        {
-		          "node":"enode://your-node-pubkey4@127.0.0.1:16792",
-		          "blsPubKey":"blsPubKey4"
-		        }
+			   nodereplace
 			],
-			"epoch": 1,
 			"amount": 10,
 			"validatorMode": "ppos",
 			"period": 10000
 		},
-				"genesisVersion": 1793
+        "genesisVersion": 1797
 	},
 	"economicModel":{
 		"common":{
@@ -38,35 +22,36 @@
             "stakeThreshold": 1000000000000000000000000,
             "operatingThreshold": 10000000000000000000,
             "maxValidators": 30,
-            "hesitateRatio": 1,
             "unStakeFreezeDuration": 2
         },
         "slashing":{
-           "slashFractionDuplicateSign": 100,
+         "slashFractionDuplicateSign": 100,
            "duplicateSignReportReward": 50,
            "maxEvidenceAge":1,
-           "slashBlocksReward":20
+           "slashBlocksReward":20,
+		   "zeroProduceCumulativeTime":3,
+		   "zeroProduceNumberThreshold":2
         },
          "gov": {
             "versionProposalVoteDurationSeconds": 160,
-            "versionProposalSupportRate": 0.667,
+            "versionProposalSupportRate": 6670,
             "textProposalVoteDurationSeconds": 160,
-            "textProposalVoteRate": 0.5,
-            "textProposalSupportRate": 0.667,          
-            "cancelProposalVoteRate": 0.50,
-            "cancelProposalSupportRate": 0.667,
+            "textProposalVoteRate": 5000,
+            "textProposalSupportRate": 6670,          
+            "cancelProposalVoteRate": 5000,
+            "cancelProposalSupportRate": 6670,
             "paramProposalVoteDurationSeconds": 160,
-            "paramProposalVoteRate": 0.50,
-            "paramProposalSupportRate": 0.667      
+            "paramProposalVoteRate": 5000,
+            "paramProposalSupportRate": 6670   
         },
         "reward":{
             "newBlockRate": 50,
             "platonFoundationYear": 10 
         },
         "innerAcc":{
-            "platonFundAccount": "0x493301712671ada506ba6ca7891f436d29185821",
+            "platonFundAccount": "lax1fyeszufxwxk62p46djncj86rd553skpptsj8v6",
             "platonFundBalance": 0,
-            "cdfAccount": "0xC7d5b0261ce3FC6C89a94e241632cae21DCfF9F8",
+            "cdfAccount": "lax1cl2mqfsuu07xezdffcjpvvk2ugwul70cja063t",
             "cdfBalance": 331811981000000000000000000
         }
 	},
@@ -75,16 +60,16 @@
 	"extraData": "0xd782070186706c61746f6e86676f312e3131856c696e757800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
 	"gasLimit": "0x99947b760",
 	"alloc": {
-		"0xf66CB3C7f28D058AE3C6eD9493C6A9e2a7d7786d": {
+		"lax17ekt83lj35zc4c7xak2f834fu2naw7rdxuz3wt": {
       		"balance": "9718188019000000000000000000"
     	},
-		"1000000000000000000000000000000000000001": {
+		"lax1zqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp3yp7hw": {
 			"balance": "0"
 		},
-		"1000000000000000000000000000000000000002": {
+		"lax1zqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzlh5ge3": {
 			"balance": "0"
 		},
-		"1000000000000000000000000000000000000003": {
+		"lax1zqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqrzpqayr": {
 			"balance": "200000000000000000000000000"
 		}
 	},

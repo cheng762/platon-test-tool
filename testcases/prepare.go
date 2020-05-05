@@ -1,10 +1,7 @@
 package testcases
 
 import (
-	"fmt"
-	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/platon-test-tool/common"
-
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -17,14 +14,18 @@ var (
 	}
 )
 
-func prepareAccount(c *cli.Context) {
+func prepareAccount(c *cli.Context) error {
 	size := c.Int(AccountSizeFlag.Name)
 	value := c.String(TransferValueFlag.Name)
-
-	parseConfigJson(c.String(ConfigPathFlag.Name))
-
-	err := PrepareAccount(size, value)
-	if err != nil {
-		panic(fmt.Errorf("send raw transaction error,%s", err.Error()))
+	TxManager = common.NewTxManager(c.String(ConfigPathFlag.Name))
+	if err := TxManager.LoadAccounts(); err != nil {
+		return err
 	}
+	if err := TxManager.PrepareAccount(size, value); err != nil {
+		return err
+	}
+	if err := TxManager.SaveAccounts(); err != nil {
+		return err
+	}
+	return nil
 }

@@ -2,10 +2,13 @@ package testcases
 
 import (
 	"fmt"
-	"gopkg.in/urfave/cli.v1"
 	"log"
 	"strings"
 	"sync"
+
+	"github.com/PlatONnetwork/platon-test-tool/common"
+
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -31,9 +34,7 @@ var (
 func init() {
 	allCases = make(map[string]caseTest)
 	allCases["restricting"] = new(restrictCases)
-	allCases["init_token"] = new(initCases)
 	allCases["reward"] = new(rewardCases)
-	allCases["gov"] = new(govCases)
 	allCases["staking"] = new(stakingCases)
 
 }
@@ -46,69 +47,78 @@ type caseTest interface {
 	List() []string
 }
 
-var allCases map[string]caseTest
+var (
+	allCases  map[string]caseTest
+	TxManager *common.TxManager
+)
 
-func start(c *cli.Context) {
+func start(c *cli.Context) error {
 	var wg sync.WaitGroup
-	loadData(c.String(ConfigPathFlag.Name))
-	for _, value := range allAccounts {
-		AccountPool.Put(value)
+	TxManager = common.NewTxManager(c.String(ConfigPathFlag.Name))
+	if err := TxManager.LoadAccounts(); err != nil {
+		return err
 	}
+
 	for name, value := range allCases {
 		wg.Add(1)
-		go func(caseFunc caseTest) {
+		go func(caseName string, caseFunc caseTest) {
 			defer wg.Done()
 			if err := caseFunc.Prepare(); err != nil {
-				log.Printf("exec %v, Prepare fail:%v", name, err)
+				log.Printf("exec %v, Prepare fail:%v", caseName, err)
 				return
 			}
 			if err := caseFunc.Start(); err != nil {
-				log.Printf("exec %v, Start fail:%v", name, err)
+				log.Printf("exec %v, Start fail:%v", caseName, err)
 				return
 			}
 			if err := caseFunc.End(); err != nil {
-				log.Printf("exec %v, End fail:%v", name, err)
+				log.Printf("exec %v, End fail:%v", caseName, err)
 				return
 			}
-		}(value)
+		}(name, value)
 	}
 	wg.Wait()
+	if err := TxManager.SaveAccounts(); err != nil {
+		return err
+	}
 	log.Print("all case exec done")
+	return nil
 }
 
-func exec(c *cli.Context) {
-	loadData(c.String(ConfigPathFlag.Name))
+func exec(c *cli.Context) error {
 
 	funcName := c.String(FuncNameFlag.Name)
 	caseName := c.Args().First()
-
+	txm := common.NewTxManager(c.String(ConfigPathFlag.Name))
+	if err := txm.LoadAccounts(); err != nil {
+		return err
+	}
 	cases, ok := allCases[caseName]
 	if !ok {
-		log.Printf("not find the case:%v", caseName)
-		return
+		return fmt.Errorf("not find the case:%v", caseName)
 	}
 	if err := cases.Prepare(); err != nil {
-		log.Printf("exec %v, Prepare fail:%v", caseName, err)
-		return
+		return fmt.Errorf("exec %v, Prepare fail:%v", caseName, err)
 	}
 	if funcName == "" {
 		if err := cases.Start(); err != nil {
-			log.Printf("exec %v, Start fail:%v", caseName, err)
-			return
+			return fmt.Errorf("exec %v, Start fail:%v", caseName, err)
 		}
 	} else {
 		if err := cases.Exec(funcName); err != nil {
-			log.Printf("exec %v, Start fail:%v", funcName, err)
-			return
+			return fmt.Errorf("exec %v, Start fail:%v", funcName, err)
 		}
 	}
 	if err := cases.End(); err != nil {
-		log.Printf("exec %v, End fail", caseName)
-		return
+		return fmt.Errorf("exec %v, End fail", caseName)
 	}
+	if err := txm.SaveAccounts(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func list(c *cli.Context) {
+func list(c *cli.Context) error {
 	caseName := c.Args().First()
 	var output string
 	if caseName != "" {
@@ -124,4 +134,5 @@ func list(c *cli.Context) {
 		output = strings.Join(names, ",")
 		fmt.Printf("support cases:%s\n", output)
 	}
+	return nil
 }

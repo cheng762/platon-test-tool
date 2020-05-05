@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/PlatON-Go"
+	"time"
+
+	ethereum "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	contract "github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -16,13 +18,12 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/x/restricting"
 	"github.com/PlatONnetwork/PlatON-Go/x/staking"
 	"github.com/PlatONnetwork/PlatON-Go/x/xcom"
-	"time"
 
 	"math/big"
 )
 
-func NewNode(url string) *node {
-	n := new(node)
+func NewNode(url string, chainID uint64) *Node {
+	n := new(Node)
 	client, err := ethclient.Dial(url)
 	if err != nil {
 		panic(err)
@@ -30,17 +31,29 @@ func NewNode(url string) *node {
 	n.client = client
 	n.ctx = context.Background()
 	n.txs = make([]*types.Transaction, 0)
+	n.id = url
+	n.chainID = chainID
 	return n
 }
 
-type node struct {
-	ctx    context.Context
-	client *ethclient.Client
-	txs    []*types.Transaction
+type Node struct {
+	ctx     context.Context
+	client  *ethclient.Client
+	txs     []*types.Transaction
+	id      string
+	chainID uint64
+}
+
+func (n *Node) GetID() string {
+	return n.id
+}
+
+func (n *Node) BlockByNumber(number *big.Int) (*types.Block, error) {
+	return n.client.BlockByNumber(n.ctx, number)
 }
 
 //获取账户金额
-func (n *node) GetBalance(address common.Address, blockNumber *big.Int) *big.Int {
+func (n *Node) GetBalance(address common.Address, blockNumber *big.Int) *big.Int {
 	balance, err := n.client.BalanceAt(n.ctx, address, blockNumber)
 	if err != nil {
 		panic(err)
@@ -48,12 +61,12 @@ func (n *node) GetBalance(address common.Address, blockNumber *big.Int) *big.Int
 	return balance
 }
 
-func (n *node) GetNonceAt(account common.Address, blockNumber *big.Int) (uint64, error) {
+func (n *Node) GetNonceAt(account common.Address, blockNumber *big.Int) (uint64, error) {
 	return n.client.NonceAt(n.ctx, account, blockNumber)
 }
 
 //获取ProgramVersion
-func (n *node) GetSchnorrNIZKProve() (string, error) {
+func (n *Node) GetSchnorrNIZKProve() (string, error) {
 	prove, err := n.client.GetSchnorrNIZKProve(n.ctx)
 	if err != nil {
 		return "", err
@@ -62,7 +75,7 @@ func (n *node) GetSchnorrNIZKProve() (string, error) {
 }
 
 //获取ProgramVersion
-func (n *node) CallProgramVersion() (*params.ProgramVersion, error) {
+func (n *Node) CallProgramVersion() (*params.ProgramVersion, error) {
 	pg, err := n.client.GetProgramVersion(n.ctx)
 	if err != nil {
 		return nil, err
@@ -70,7 +83,23 @@ func (n *node) CallProgramVersion() (*params.ProgramVersion, error) {
 	return pg, nil
 }
 
-func (n *node) SendTraction(from *PriAccount, to common.Address, value string, data []byte) (common.Hash, error) {
+//will not exec before send
+func (n *Node) AddTraction(from *PriAccount, to common.Address, value string, data []byte) (common.Hash, error) {
+	tx, err := from.SignedTransaction(n, to, value, data)
+	if err != nil {
+		return common.ZeroHash, err
+	}
+	n.txs = append(n.txs, tx)
+	return tx.Hash(), nil
+}
+
+func (n *Node) AddRawTraction(txs ...*types.Transaction) {
+	for _, tx := range txs {
+		n.txs = append(n.txs, tx)
+	}
+}
+
+func (n *Node) SendTraction(from *PriAccount, to common.Address, value string, data []byte) (common.Hash, error) {
 	tx, err := from.SignedTransaction(n, to, value, data)
 	if err != nil {
 		return common.ZeroHash, err
@@ -81,7 +110,7 @@ func (n *node) SendTraction(from *PriAccount, to common.Address, value string, d
 	return tx.Hash(), nil
 }
 
-func (n *node) SendRawTraction(txs ...*types.Transaction) error {
+func (n *Node) SendRawTraction(txs ...*types.Transaction) error {
 	for _, tx := range txs {
 		if err := n.client.SendTransaction(n.ctx, tx); err != nil {
 			return err
@@ -90,33 +119,16 @@ func (n *node) SendRawTraction(txs ...*types.Transaction) error {
 	return nil
 }
 
-//will not exec before send
-func (n *node) AddTraction(from *PriAccount, to common.Address, value string, data []byte) (common.Hash, error) {
-	tx, err := from.SignedTransaction(n, to, value, data)
-	if err != nil {
-		return common.ZeroHash, err
-	}
-	n.txs = append(n.txs, tx)
-	return tx.Hash(), nil
-}
-
-func (n *node) AddRawTraction(txs ...*types.Transaction) {
-	for _, tx := range txs {
-		n.txs = append(n.txs, tx)
-	}
-}
-
-func (n *node) SendAllTraction() error {
+func (n *Node) SendAllTraction() error {
 	for _, tx := range n.txs {
 		if err := n.client.SendTransaction(n.ctx, tx); err != nil {
 			return err
 		}
 	}
-	n.txs = make([]*types.Transaction, 0)
 	return nil
 }
 
-func (n *node) CallPPosContract(funcType uint16, params ...interface{}) xcom.Result {
+func (n *Node) CallPPosContract(funcType uint16, params ...interface{}) xcom.Result {
 	send, to := encodePPOS(funcType, params...)
 	var msg ethereum.CallMsg
 	msg.Data = send
@@ -133,7 +145,7 @@ func (n *node) CallPPosContract(funcType uint16, params ...interface{}) xcom.Res
 }
 
 //获取锁仓信息
-func (n *node) CallGetRestrictingInfo(ctx context.Context, account common.Address) RestrictingResult {
+func (n *Node) CallGetRestrictingInfo(ctx context.Context, account common.Address) RestrictingResult {
 	xres := n.CallPPosContract(4100, account)
 	if xres.Code == 0 {
 		var result restricting.Result
@@ -152,7 +164,7 @@ func (n *node) CallGetRestrictingInfo(ctx context.Context, account common.Addres
 	}
 }
 
-func (n *node) CallGetGovernParamValue(module, name string) (string, error) {
+func (n *Node) CallGetGovernParamValue(module, name string) (string, error) {
 	xres := n.CallPPosContract(contract.GetGovernParamValue, module, name)
 	if xres.Code == 0 {
 		var result string
@@ -164,19 +176,19 @@ func (n *node) CallGetGovernParamValue(module, name string) (string, error) {
 }
 
 //查询当前账户地址所委托的节点的NodeID和质押Id
-func (n *node) CallGetRelatedListByDelAddr(account common.Address) (staking.DelRelatedQueue, error) {
+func (n *Node) CallGetRelatedListByDelAddr(account common.Address) (staking.DelRelatedQueue, error) {
 	xres := n.CallPPosContract(1103, account)
 	var delRelatedQueue staking.DelRelatedQueue
 	delRelatedQueue = xres.Ret.(staking.DelRelatedQueue)
 	return delRelatedQueue, nil
 }
 
-func (n *node) CallGetDelegateReward(account common.Address, nodes []discover.NodeID) (interface{}, error) {
+func (n *Node) CallGetDelegateReward(account common.Address, nodes []discover.NodeID) (interface{}, error) {
 	xres := n.CallPPosContract(5100, account, nodes)
 	return xres.Ret, nil
 }
 
-func (n *node) CallCandidateInfo(nodeID discover.NodeID) map[string]interface{} {
+func (n *Node) CallCandidateInfo(nodeID discover.NodeID) map[string]interface{} {
 	xres := n.CallPPosContract(1105, nodeID)
 	if xres.Code != 0 {
 		return nil
@@ -186,7 +198,7 @@ func (n *node) CallCandidateInfo(nodeID discover.NodeID) map[string]interface{} 
 	return result
 }
 
-func (n *node) GetVerifierList() []interface{} {
+func (n *Node) GetVerifierList() []interface{} {
 	xres := n.CallPPosContract(1100)
 	if xres.Code != 0 {
 		return nil
@@ -196,7 +208,7 @@ func (n *node) GetVerifierList() []interface{} {
 	return result
 }
 
-func (n *node) GetDelegateInfo(stakingBlockNum uint64, delAddr common.Address, nodeId discover.NodeID) map[string]interface{} {
+func (n *Node) GetDelegateInfo(stakingBlockNum uint64, delAddr common.Address, nodeId discover.NodeID) map[string]interface{} {
 	xres := n.CallPPosContract(contract.QueryDelegateInfo, stakingBlockNum, delAddr, nodeId)
 	if xres.Code == 0 {
 		var result map[string]interface{}
@@ -207,7 +219,7 @@ func (n *node) GetDelegateInfo(stakingBlockNum uint64, delAddr common.Address, n
 	}
 }
 
-func (n *node) GetGetValidatorList() []interface{} {
+func (n *Node) GetGetValidatorList() []interface{} {
 	xres := n.CallPPosContract(1101)
 	if xres.Code == 0 {
 		var result []interface{}
@@ -219,7 +231,7 @@ func (n *node) GetGetValidatorList() []interface{} {
 }
 
 //等待交易确认
-func (n *node) WaitTransactionByHash(txHash common.Hash) error {
+func (n *Node) WaitTransactionByHash(txHash common.Hash) error {
 	i := 0
 	for {
 		if i > 10 {
@@ -241,7 +253,7 @@ func (n *node) WaitTransactionByHash(txHash common.Hash) error {
 	return nil
 }
 
-func (n *node) GetXcomResult(txHash common.Hash) (*xcom.Result, error) {
+func (n *Node) GetXcomResult(txHash common.Hash) (*xcom.Result, error) {
 	receipt, err := n.client.TransactionReceipt(n.ctx, txHash)
 	if err != nil {
 		return nil, fmt.Errorf("get TransactionReceipt fail:%v", err)
